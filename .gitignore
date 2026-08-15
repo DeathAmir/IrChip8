@@ -1,0 +1,9 @@
+build/
+build-*/
+dist/
+dist-*/
+*.zip
+*.tar.gz
+*.wasm
+*.js.gz
+.DS_Store
