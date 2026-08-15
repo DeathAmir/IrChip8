@@ -1,99 +1,67 @@
 # IrChip8
 
-IrChip8 is a portable C++20 CHIP-8 emulator with classic CHIP-8, Super-CHIP support, compatibility quirks, native SDL3 frontends, and a compact WebAssembly browser frontend.
+IrChip8 is a compact C++20 CHIP-8 emulator with classic CHIP-8, CHIP-48 compatibility quirks and Super-CHIP support. The same emulation core is used by native SDL3 builds and the browser/WebAssembly build.
 
-## Features
+## Release targets
 
-- Complete classic CHIP-8 instruction set
-- Super-CHIP 1.1 conveniences: high/low resolution, scrolling, 16x16 sprites, large font, RPL flags and exit opcode
-- 4 KiB memory, 16 V registers, index register, 16-level stack, delay/sound timers and 16-key keypad
-- XOR sprite drawing and collision flag handling
-- Compatibility profiles for common historical behavior differences
-- SDL3 desktop frontend with resizable pixel rendering
-- WebAssembly frontend with no SDL dependency in the browser build
-- Browser `.ch8` file picker and drag/drop ROM loading
-- Heuristic ROM dialect/profile detection with a manual compatibility override
-- Keyboard, virtual keypad and gamepad/controller support
-- 440 Hz CHIP-8 buzzer on desktop and Web Audio buzzer in browsers
-- Configurable CPU clock
-- Unit tests for arithmetic, memory, drawing, keypad wait behavior and compatibility quirks
-- GitHub Actions artifacts for Windows x64, Linux x64 and WebAssembly
-- UPX-packed native release executables
-- `-Oz`, LTO and Binaryen `wasm-opt -Oz` size optimization for WebAssembly
+| Target | Runtime | Package |
+|---|---|---|
+| Windows x64 | C++20 + SDL3 | `IrChip8-Windows-x64.zip` |
+| Linux x64 | C++20 + SDL3 | `IrChip8-Linux-x64.tar.gz` |
+| Browser | C++20 + SDL3 + Emscripten/WebAssembly | `IrChip8-WebAssembly.zip` |
 
-## Desktop build
-
-Requirements for a normal desktop build are CMake 3.24+ and a C++20 compiler. SDL 3.4.12 is fetched automatically by CMake.
-
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
-```
-
-To build only the dependency-free emulator core and tests:
-
-```bash
-cmake -S . -B build -DIRCHIP8_BUILD_APP=OFF -DIRCHIP8_BUILD_TESTS=ON
-cmake --build build --parallel
-ctest --test-dir build --output-on-failure
-```
+Native release executables are packed with UPX 5.2.0 using `--best --lzma` and checked with `upx -t` before packaging.
 
 ## WebAssembly build
 
-The web target uses Emscripten and intentionally does not compile SDL into the browser binary. The C++ emulator core becomes `irchip8.wasm`; a small JavaScript runtime handles Canvas rendering, Web Audio and browser input.
+The web version is no longer a JavaScript-rendered emulator. Rendering, input handling, timing and audio are driven by SDL3 from C++ and compiled by Emscripten to WebAssembly.
 
-With an activated Emscripten SDK:
+The web release contains two ways to run it:
 
-```bash
-emcmake cmake -S . -B build-web \
-  -DCMAKE_BUILD_TYPE=MinSizeRel \
-  -DIRCHIP8_BUILD_APP=OFF \
-  -DIRCHIP8_BUILD_TESTS=OFF \
-  -DIRCHIP8_BUILD_WEB=ON
+- `index.html`, `index.js`, `index.wasm`: normal files for a web server or static hosting.
+- `IrChip8-Standalone.html`: one self-contained HTML file with WebAssembly embedded by Emscripten `SINGLE_FILE`; this is the easiest local launcher and avoids the usual `file://` fetch problem.
 
-cmake --build build-web --parallel
-wasm-opt build-web/irchip8.wasm -Oz --strip-debug --strip-producers -o build-web/irchip8.optimized.wasm
-```
+Open the standalone HTML, choose or drag a `.ch8` ROM, inspect the detected architecture/profile and press **Run**. The normal hosted build exposes the same controls.
 
-The browser distribution consists of:
+Browser controls:
+
+- `Choose .ch8`: select a ROM from disk.
+- Drag/drop: drop a `.ch8` file on the ROM area.
+- `Run`: start/pause emulation.
+- `Reset`: reload the current ROM from the beginning.
+- Profile: Auto, Modern, COSMAC VIP or CHIP-48.
+- CPU: 60–2000 Hz from the UI.
+- `Fullscreen`: fullscreen the SDL canvas.
+
+Keyboard layout:
 
 ```text
-index.html
-app.js
-style.css
-irchip8.js
-irchip8.wasm
+CHIP-8          PC
+1 2 3 C         1 2 3 4
+4 5 6 D         Q W E R
+7 8 9 E         A S D F
+A 0 B F         Z X C V
 ```
 
-Serve those files over HTTP. For example:
+Space also toggles Run/Pause in the SDL3 web runtime. Browser gamepads are delivered through SDL3's gamepad layer.
 
-```bash
-python3 -m http.server 8080 -d dist-web
-```
+### ROM architecture detection
 
-Then open `http://localhost:8080` in a browser, click **Open a .ch8 ROM**, choose a ROM, and IrChip8 loads it directly into WebAssembly memory.
+Before execution, the browser runtime scans ROM opcodes and estimates one of:
 
-Browsers do not allow a page to silently scan arbitrary files on a user's computer. The user explicitly selects the `.ch8` file with the browser picker or drags it onto the page.
+- CHIP-8
+- CHIP-48
+- Super-CHIP
 
-### Automatic ROM detection
+Super-CHIP can be identified strongly from dedicated instructions such as scroll, high/low-resolution and RPL opcodes. Historical CHIP-8 quirks are not always statically distinguishable, so detection reports a confidence value and the UI keeps a manual profile override.
 
-The web frontend scans aligned CHIP-8 opcodes before execution:
-
-- Super-CHIP-only instructions such as scrolling, high/low resolution switching, 16x16 drawing, high font and RPL opcodes strongly select Super-CHIP/CHIP-48 behavior.
-- Original `0NNN` calls and two-register shift patterns increase the COSMAC VIP score.
-- `BxNN`-style jumps increase the CHIP-48 score.
-- Ambiguous ROMs default to the modern profile.
-
-CHIP-8 compatibility differences are behavioral quirks, so no static detector can identify every historical ROM perfectly. The UI therefore shows a confidence value and keeps a manual Modern / VIP / CHIP-48 override.
-
-## Desktop run
+## Desktop usage
 
 ```bash
 IrChip8 path/to/game.ch8
 ```
 
-Useful options:
+Options:
 
 ```text
 --profile modern|vip|chip48
@@ -101,39 +69,17 @@ Useful options:
 --no-schip
 ```
 
-Examples:
+On Windows you can drag a `.ch8` file onto `IrChip8.exe`.
 
-```bash
-IrChip8 PONG.ch8
-IrChip8 TETRIS.ch8 --profile vip --hz 600
-```
+Desktop hotkeys:
 
-On Windows you can also drag a `.ch8` file onto `IrChip8.exe`; Windows passes the ROM path to the program.
+- `Esc`: exit
+- `F1`: Modern profile
+- `F2`: COSMAC VIP profile
+- `F3`: CHIP-48 profile
+- `F5`: reload ROM
 
-## Keyboard
-
-The left side is the original CHIP-8 hexadecimal keypad and the right side is the PC/browser keyboard mapping.
-
-```text
-1 2 3 C        1 2 3 4
-4 5 6 D        Q W E R
-7 8 9 E        A S D F
-A 0 B F        Z X C V
-```
-
-Desktop extra keys:
-
-- `Esc`: quit
-- `F1`: modern profile
-- `F2`: COSMAC VIP-style profile
-- `F3`: CHIP-48-style profile
-- `F5`: reload current ROM
-
-## Controller mapping
-
-The SDL desktop frontend supports SDL-compatible gamepads and hot-plugging. The WebAssembly frontend uses the browser Gamepad API and maps the D-pad to CHIP-8 directional-style keys plus the four face buttons to common action keys.
-
-Desktop mapping:
+SDL gamepad mapping:
 
 ```text
 D-pad Up/Down/Left/Right -> 2/8/4/6
@@ -146,45 +92,61 @@ Guide/Misc1             -> E/F
 
 ## Compatibility profiles
 
-CHIP-8 interpreters historically disagree on a few instructions. IrChip8 keeps these behaviors explicit instead of hard-coding one interpretation.
+- `modern`: shifts use Vx; Fx55/Fx65 keep I unchanged; Bnnn uses V0; drawing clips.
+- `vip`: shifts use Vy; Fx55/Fx65 increment I; logic operations clear VF; drawing wraps.
+- `chip48`: shifts use Vx; Fx55/Fx65 keep I unchanged; Bxnn-style jumps use Vx; drawing clips.
 
-- `modern`: shifts use Vx, Fx55/Fx65 keep I unchanged, Bnnn uses V0, drawing clips at the edge
-- `vip`: shifts use Vy, Fx55/Fx65 increment I, logic operations clear VF, drawing wraps
-- `chip48`: shifts use Vx, Fx55/Fx65 keep I unchanged, Bxnn-style jump uses Vx, drawing clips
+## Implemented instruction families
 
-If a ROM behaves incorrectly, switching profiles is the first thing to try.
+The core implements the complete classic CHIP-8 instruction set plus useful Super-CHIP 1.1 instructions including resolution switching, scrolling, 16x16 sprites, large font, RPL flags and exit.
 
-## Size optimization
+The classic machine model uses 4 KiB memory and starts programs at `0x200`, so the largest directly supported classic/Super-CHIP ROM payload is 3584 bytes. XO-CHIP is not a target of this version.
 
-Native Windows/Linux artifacts are packed with UPX during GitHub Actions and validated with `upx -t` before packaging.
-
-WebAssembly is not an UPX executable format, so the web pipeline uses the WebAssembly-native optimization path instead:
-
-- Emscripten `-Oz`
-- link-time optimization (`-flto`)
-- small `emmalloc` allocator
-- no SDL in the browser target
-- disabled Emscripten filesystem and assertions
-- Binaryen `wasm-opt -Oz`
-- stripped debug/producer metadata
-- pre-generated gzip copies of the JS and WASM payloads for servers configured to serve compressed assets
-
-## ROMs
-
-ROM files are not included in this repository. Use ROMs that you have the right to run or public-domain/homebrew CHIP-8 programs.
-
-Good compatibility tests include the Timendus CHIP-8 test suite: splash screen, IBM logo, Corax+ opcode test, flags test, quirks test, keypad test and beep test.
-
-## Project layout
+## Source layout
 
 ```text
-include/irchip8/chip8.hpp  CPU/core public API
-src/chip8.cpp               CHIP-8 and Super-CHIP implementation
-src/main.cpp                SDL3 desktop window, renderer, audio and input
-web/wasm_bridge.cpp         narrow C ABI exported from C++ into WebAssembly
-web/index.html              browser ROM picker and emulator UI
-web/app.js                  browser runtime, Canvas, Web Audio and Gamepad input
-web/style.css                responsive web frontend styling
-tests/chip8_tests.cpp       dependency-free core unit tests
-.github/workflows/build.yml Windows/Linux/Wasmtime-style WebAssembly CI artifacts
+include/irchip8/chip8.hpp   public core API
+src/chip8.cpp               CPU, memory, display, timers and quirks
+src/main.cpp                SDL3 Windows/Linux frontend
+web/sdl_web.cpp             SDL3/Emscripten browser runtime
+web/shell.html               browser UI / Emscripten shell
+tests/chip8_tests.cpp       core unit tests
+.github/workflows/build.yml CI, UPX packaging, WASM packaging and release
 ```
+
+`web/sdl_web.cpp` intentionally uses an old-school single-translation-unit style with global state, compact switches, macros and label-based ROM probing. This keeps the requested retro/spaghetti frontend style isolated from the tested emulator core, so instruction correctness remains easier to verify.
+
+## Build desktop
+
+Requirements: CMake 3.24+ and a C++20 compiler. SDL 3.4.12 is fetched by CMake.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
+
+## Build WebAssembly
+
+Use a current Emscripten SDK:
+
+```bash
+emcmake cmake -S . -B build-web \
+  -DCMAKE_BUILD_TYPE=MinSizeRel \
+  -DIRCHIP8_BUILD_APP=OFF \
+  -DIRCHIP8_BUILD_TESTS=OFF \
+  -DIRCHIP8_BUILD_WEB=ON
+cmake --build build-web --parallel
+```
+
+This produces a hosted `index.html/index.js/index.wasm` build and the single-file `IrChip8-Standalone.html` launcher.
+
+## Tests
+
+Core tests cover arithmetic/carry/borrow, BCD and register memory operations, sprite collision, shift quirks, keypad wait behavior and Super-CHIP resolution/exit behavior.
+
+For broader compatibility testing, the Timendus CHIP-8 test suite is useful. ROMs are not bundled with IrChip8; use ROMs you have the right to run.
+
+## License
+
+MIT. See `LICENSE`.
