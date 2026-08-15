@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IrChip8 — SDL3 WebAssembly</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#080a0d;color:#e8edf4;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}body{padding:24px}.wrap{width:min(1180px,100%);margin:auto}.top{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}.brand{font-size:22px;font-weight:800}.sub{color:#8e9bab;font-size:12px}.panel{background:#0e1218;border:1px solid #232a34;border-radius:16px;padding:16px}.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}button,select,input[type=range]{accent-color:#dbe7f5}button,select{border:1px solid #343f4d;background:#151b23;color:#edf4ff;border-radius:9px;padding:9px 12px;font:inherit;cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}button.primary{background:#edf4ff;color:#0a0d12;border-color:#edf4ff;font-weight:800}#drop{padding:10px 12px;border:1px dashed #394657;border-radius:10px;color:#a8b4c4;flex:1;min-width:240px}#drop.hot{background:#17202b;border-color:#9eb3ca}.screen{background:#020304;border-radius:12px;overflow:hidden;line-height:0}canvas{display:block;width:100%;aspect-ratio:2/1;border:0;padding:0;margin:0;image-rendering:pixelated;background:#020304}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}.cell{background:#0a0d12;border:1px solid #1f2731;border-radius:10px;padding:10px}.k{color:#8290a2;font-size:10px;text-transform:uppercase}.v{margin-top:5px;font-size:13px;overflow-wrap:anywhere}.msg{margin-top:12px;color:#b9c8d9;font-size:12px;min-height:18px}.foot{margin-top:12px;color:#6f7d8d;font-size:11px;line-height:1.6}@media(max-width:700px){body{padding:10px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div><div class="brand">IrChip8</div><div class="sub">C++20 · SDL3 · WebAssembly · CHIP-8 / CHIP-48 / Super-CHIP</div></div><button id="full">Fullscreen</button></div>
+  <div class="panel">
+    <div class="bar">
+      <input id="romFile" type="file" accept=".ch8,application/octet-stream" hidden>
+      <button id="pick" class="primary">Choose .ch8</button>
+      <button id="run" disabled>Run</button>
+      <button id="reset" disabled>Reset</button>
+      <div id="drop">or drop a .ch8 ROM here</div>
+    </div>
+    <div class="bar">
+      <label>Profile <select id="profile"><option value="-1">Auto</option><option value="0">Modern</option><option value="1">COSMAC VIP</option><option value="2">CHIP-48</option></select></label>
+      <label>CPU <input id="hz" type="range" min="60" max="2000" value="700" step="10"> <span id="hzv">700 Hz</span></label>
+    </div>
+    <div class="screen"><canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas></div>
+    <div class="grid">
+      <div class="cell"><div class="k">ROM</div><div class="v" id="rom">No ROM loaded</div></div>
+      <div class="cell"><div class="k">Detected architecture</div><div class="v" id="dialect">—</div></div>
+      <div class="cell"><div class="k">Detected profile</div><div class="v" id="detected">—</div></div>
+      <div class="cell"><div class="k">Confidence</div><div class="v" id="confidence">—</div></div>
+    </div>
+    <div class="msg" id="msg">Starting SDL3 runtime…</div>
+    <div class="foot">Keyboard: 1 2 3 4 / Q W E R / A S D F / Z X C V · Space toggles run/pause · Standard browser gamepads are handled through SDL3.</div>
+  </div>
+</div>
+<script>
+var Module={canvas:document.getElementById('canvas'),print:function(x){console.log(x)},printErr:function(x){console.error(x)}};
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>
