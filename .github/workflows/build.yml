@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: irchip8-${{ github.head_ref || github.ref_name }}
@@ -24,7 +24,6 @@ jobs:
           - os: ubuntu-latest
             artifact: IrChip8-Linux-x64
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,6 +90,7 @@ jobs:
           Copy-Item build/Release/IrChip8.exe dist/IrChip8.exe
           Copy-Item README.md dist/README.md
           Copy-Item LICENSE dist/LICENSE
+          "IrChip8 v1.2.0`nSDL3 desktop build`nUPX 5.2.0 --best --lzma" | Set-Content dist/BUILD-INFO.txt
           Compress-Archive -Path dist/* -DestinationPath IrChip8-Windows-x64.zip -Force
 
       - name: Package Linux
@@ -100,6 +100,7 @@ jobs:
           mkdir -p dist
           cp build/IrChip8 dist/IrChip8
           cp README.md LICENSE dist/
+          printf 'IrChip8 v1.2.0\nSDL3 desktop build\nUPX 5.2.0 --best --lzma\n' > dist/BUILD-INFO.txt
           chmod +x dist/IrChip8
           tar -C dist -czf IrChip8-Linux-x64.tar.gz .
 
@@ -122,12 +123,11 @@ jobs:
   webassembly:
     runs-on: ubuntu-latest
     container: emscripten/emsdk:6.0.4
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure WebAssembly
+      - name: Configure SDL3 WebAssembly
         shell: bash
         run: |
           emcmake cmake -S . -B build-web \
@@ -136,36 +136,91 @@ jobs:
             -DIRCHIP8_BUILD_TESTS=OFF \
             -DIRCHIP8_BUILD_WEB=ON
 
-      - name: Build WebAssembly
+      - name: Build hosted and standalone web targets
         shell: bash
         run: cmake --build build-web --parallel
 
-      - name: Optimize WebAssembly size
+      - name: Optimize hosted WebAssembly
         shell: bash
         run: |
-          /emsdk/upstream/bin/wasm-opt build-web/irchip8.wasm \
-            --all-features -Oz --strip-debug --strip-producers \
-            -o build-web/irchip8.optimized.wasm
-          mv build-web/irchip8.optimized.wasm build-web/irchip8.wasm
-          ls -lh build-web/irchip8.js build-web/irchip8.wasm
+          /emsdk/upstream/bin/wasm-opt build-web/index.wasm \
+            -Oz --all-features --strip-debug --strip-producers \
+            -o build-web/index.optimized.wasm
+          mv build-web/index.optimized.wasm build-web/index.wasm
 
-      - name: Check browser JavaScript syntax
+      - name: Verify web outputs
         shell: bash
-        run: node --check web/app.js
+        run: |
+          test -s build-web/index.html
+          test -s build-web/index.js
+          test -s build-web/index.wasm
+          test -s build-web/IrChip8-Standalone.html
+          node --check build-web/index.js
+          grep -q "Choose .ch8" build-web/index.html
+          grep -q "Run" build-web/IrChip8-Standalone.html
+          ls -lh build-web/index.html build-web/index.js build-web/index.wasm build-web/IrChip8-Standalone.html
 
-      - name: Package browser build
+      - name: Package WebAssembly release
         shell: bash
         run: |
           mkdir -p dist-web
-          cp web/index.html web/app.js web/style.css dist-web/
-          cp build-web/irchip8.js build-web/irchip8.wasm dist-web/
+          cp build-web/index.html build-web/index.js build-web/index.wasm dist-web/
+          cp build-web/IrChip8-Standalone.html dist-web/
           cp README.md LICENSE dist-web/
-          gzip -9 -k dist-web/irchip8.wasm
-          gzip -9 -k dist-web/irchip8.js
+          printf 'IrChip8 v1.2.0\nSDL3 + Emscripten WebAssembly\nindex.html = hosted build\nIrChip8-Standalone.html = self-contained local launcher\n' > dist-web/BUILD-INFO.txt
+          gzip -9 -k dist-web/index.js
+          gzip -9 -k dist-web/index.wasm
+          python3 -m zipfile -c IrChip8-WebAssembly.zip dist-web/*
 
       - name: Upload WebAssembly artifact
         uses: actions/upload-artifact@v4
         with:
           name: IrChip8-WebAssembly
-          path: dist-web/
+          path: IrChip8-WebAssembly.zip
           if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [native, webassembly]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: IrChip8-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          # IrChip8 v1.2.0
+
+          SDL3-based CHIP-8 / CHIP-48 / Super-CHIP emulator for Windows, Linux and WebAssembly.
+
+          Highlights:
+          - Native Windows/Linux SDL3 builds compressed with UPX 5.2.0 and verified with `upx -t`.
+          - Browser runtime now uses SDL3 directly from C++ instead of a JavaScript-rendered emulator loop.
+          - Web package includes normal `index.html + index.js + index.wasm` hosting files.
+          - Web package also includes `IrChip8-Standalone.html`, a self-contained launcher with embedded WebAssembly for easy local opening.
+          - `.ch8` picker and drag/drop, explicit Run/Pause/Reset controls, keyboard and gamepad support.
+          - Heuristic CHIP-8 / CHIP-48 / Super-CHIP ROM detection with manual profile override.
+          - Core unit tests and cross-platform CI remain enabled.
+
+          ROMs are not bundled. Use ROMs you are allowed to run.
+          NOTES
+
+      - name: Create GitHub Release v1.2.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create v1.2.0 \
+            release-assets/IrChip8-Windows-x64.zip \
+            release-assets/IrChip8-Linux-x64.tar.gz \
+            release-assets/IrChip8-WebAssembly.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "IrChip8 v1.2.0 — SDL3 WebAssembly" \
+            --notes-file RELEASE_NOTES.md
