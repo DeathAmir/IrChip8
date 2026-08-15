@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  native:
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +48,37 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Install UPX on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-win64.zip" -OutFile upx.zip
+          Expand-Archive upx.zip -DestinationPath upx
+          $upxDir = (Get-ChildItem upx -Directory | Select-Object -First 1).FullName
+          $upxDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install UPX on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl -L "https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-amd64_linux.tar.xz" -o upx.tar.xz
+          tar -xf upx.tar.xz
+          sudo install -m 0755 upx-5.2.0-amd64_linux/upx /usr/local/bin/upx
+
+      - name: Pack Windows executable with UPX
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          upx --best --lzma build/Release/IrChip8.exe
+          upx -t build/Release/IrChip8.exe
+
+      - name: Pack Linux executable with UPX
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          upx --best --lzma build/IrChip8
+          upx -t build/IrChip8
+
       - name: Package Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -82,4 +113,51 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: IrChip8-Linux-x64.tar.gz
+          if-no-files-found: error
+
+  webassembly:
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk:6.0.4
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure WebAssembly
+        shell: bash
+        run: |
+          emcmake cmake -S . -B build-web \
+            -DCMAKE_BUILD_TYPE=MinSizeRel \
+            -DIRCHIP8_BUILD_APP=OFF \
+            -DIRCHIP8_BUILD_TESTS=OFF \
+            -DIRCHIP8_BUILD_WEB=ON
+
+      - name: Build WebAssembly
+        shell: bash
+        run: cmake --build build-web --parallel
+
+      - name: Optimize WebAssembly size
+        shell: bash
+        run: |
+          wasm-opt build-web/irchip8.wasm \
+            -Oz --strip-debug --strip-producers \
+            -o build-web/irchip8.optimized.wasm
+          mv build-web/irchip8.optimized.wasm build-web/irchip8.wasm
+          ls -lh build-web/irchip8.js build-web/irchip8.wasm
+
+      - name: Package browser build
+        shell: bash
+        run: |
+          mkdir -p dist-web
+          cp web/index.html web/app.js web/style.css dist-web/
+          cp build-web/irchip8.js build-web/irchip8.wasm dist-web/
+          cp README.md LICENSE dist-web/
+          gzip -9 -k dist-web/irchip8.wasm
+          gzip -9 -k dist-web/irchip8.js
+
+      - name: Upload WebAssembly artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IrChip8-WebAssembly
+          path: dist-web/
           if-no-files-found: error
