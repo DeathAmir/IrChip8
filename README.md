@@ -12,14 +12,32 @@ IrChip8 is a compact C++20 CHIP-8 emulator with classic CHIP-8, CHIP-48 compatib
 
 Native release executables are packed with UPX 5.2.0 using `--best --lzma` and checked with `upx -t` before packaging.
 
+## Quick start
+
+Desktop:
+
+```bash
+IrChip8 game.ch8
+```
+
+Web/local:
+
+1. Extract `IrChip8-WebAssembly.zip`.
+2. Open `IrChip8-Standalone.html` directly in a current browser.
+3. Press **Choose .ch8** or drag a ROM into the page.
+4. Review detected architecture/profile.
+5. Press **Run**.
+
+For normal web hosting, upload `index.html`, `index.js` and `index.wasm` together and serve `.wasm` as `application/wasm`.
+
 ## WebAssembly build
 
-The web version is no longer a JavaScript-rendered emulator. Rendering, input handling, timing and audio are driven by SDL3 from C++ and compiled by Emscripten to WebAssembly.
+The web version is not a JavaScript-rendered emulator. Rendering, input handling, timing and audio are driven by SDL3 from C++ and compiled by Emscripten to WebAssembly.
 
 The web release contains two ways to run it:
 
 - `index.html`, `index.js`, `index.wasm`: normal files for a web server or static hosting.
-- `IrChip8-Standalone.html`: one self-contained HTML file with WebAssembly embedded by Emscripten `SINGLE_FILE`; this is the easiest local launcher and avoids the usual `file://` fetch problem.
+- `IrChip8-Standalone.html`: one self-contained HTML file with WebAssembly embedded by Emscripten `SINGLE_FILE`; this is the easiest local launcher and avoids the usual separate `.wasm` fetch path.
 
 Open the standalone HTML, choose or drag a `.ch8` ROM, inspect the detected architecture/profile and press **Run**. The normal hosted build exposes the same controls.
 
