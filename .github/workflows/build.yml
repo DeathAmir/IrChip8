@@ -139,11 +139,15 @@ jobs:
       - name: Optimize WebAssembly size
         shell: bash
         run: |
-          wasm-opt build-web/irchip8.wasm \
+          /emsdk/upstream/bin/wasm-opt build-web/irchip8.wasm \
             -Oz --strip-debug --strip-producers \
             -o build-web/irchip8.optimized.wasm
           mv build-web/irchip8.optimized.wasm build-web/irchip8.wasm
           ls -lh build-web/irchip8.js build-web/irchip8.wasm
+
+      - name: Check browser JavaScript syntax
+        shell: bash
+        run: node --check web/app.js
 
       - name: Package browser build
         shell: bash
