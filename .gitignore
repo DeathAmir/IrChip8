@@ -1,8 +1,9 @@
-/build/
-/out/
-/dist/
-*.ch8
-*.c8
+build/
+build-*/
+dist/
+dist-*/
 *.zip
 *.tar.gz
+*.wasm
+*.js.gz
 .DS_Store
